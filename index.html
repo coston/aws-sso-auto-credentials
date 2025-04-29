@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS SSO Auto-Credentials Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>AWS SSO Auto-Credentials</h1>
+            <p>A cross-platform Node.js CLI tool to automate the setup of AWS IAM Identity Center (AWS SSO) with auto-refreshing credentials.</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="demo-container">
+            <div class="demo-header">
+                <div class="demo-controls">
+                    <span class="demo-control red"></span>
+                    <span class="demo-control yellow"></span>
+                    <span class="demo-control green"></span>
+                </div>
+                <div class="demo-title">Terminal</div>
+            </div>
+            <div class="terminal" id="terminal">
+                <div class="terminal-line">
+                    <span class="prompt">$</span>
+                    <span class="command">npx aws-sso-auto-credentials</span>
+                </div>
+                <!-- Terminal content will be added here by JavaScript -->
+            </div>
+            <div class="demo-controls">
+                <button id="restart-demo" class="btn">Restart Demo</button>
+                <button id="toggle-speed" class="btn">Toggle Speed</button>
+            </div>
+        </div>
+
+        <div class="explanation-container">
+            <h2>How It Works</h2>
+            <div id="current-step-explanation" class="explanation-content">
+                <p>This demo shows how the AWS SSO Auto-Credentials tool works.</p>
+                <p>Click "Restart Demo" to begin the demonstration.</p>
+            </div>
+
+            <h2>Files Created</h2>
+            <div class="files-container">
+                <div class="file-tab" data-file="config">AWS Config</div>
+                <div class="file-tab" data-file="script">Refresh Script</div>
+            </div>
+            <div class="file-content-container">
+                <pre id="file-content" class="file-content">Select a file tab to view its content.</pre>
+            </div>
+        </div>
+    </main>
+
+    <footer class="container">
+        <p>This is a demo of <a href="https://github.com/username/aws-sso-auto-credentials" target="_blank">AWS SSO Auto-Credentials</a>. The actual tool runs on your local machine.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
