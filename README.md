@@ -1,53 +1,91 @@
-# AWS SSO Auto-Credentials Demo
+# AWS SSO Auto-Credentials
 
-This is a GitHub Pages compatible demo that emulates the CLI experience of the [AWS SSO Auto-Credentials](https://github.com/username/aws-sso-auto-credentials) tool.
+A cross-platform Node.js CLI tool to automate the setup of AWS IAM Identity Center (AWS SSO) with auto-refreshing credentials.
 
-## About the Demo
+## Features
 
-This demo simulates the interactive CLI experience of setting up AWS SSO Auto-Credentials, a tool that automates the setup of AWS IAM Identity Center (AWS SSO) with auto-refreshing credentials.
-
-The demo shows:
-
-1. The interactive setup process
-2. The prompts and responses
-3. The files created during setup
-4. Explanations of what's happening at each step
-
-## Features Demonstrated
-
-- **Cross-platform support**: Works on MacOS, Linux, and Windows
+- **Cross-platform support**: Works on MacOS, Linux, and Windows (with Git Bash or WSL)
 - **Zero background processes**: Credentials are refreshed on-demand when needed
-- **Profile-specific scripts**: Each profile gets its own refresh script
+- **Profile-specific scripts**: Each profile gets its own refresh script for better multi-profile management
 - **Easy setup**: Interactive prompts guide you through the configuration process
 - **Minimal configuration**: Works in under 5 minutes with minimal input required
 
-## How to Use the Demo
+## Installation
 
-1. The demo automatically starts when the page loads
-2. Watch as the CLI commands and responses are simulated
-3. Read the explanations on the right side to understand what's happening
-4. View the generated files by clicking on the file tabs
-5. Use the "Restart Demo" button to start over
-6. Use the "Toggle Speed" button to switch between normal and fast speed
+### Global Installation
 
-## How to Host on GitHub Pages
+```bash
+npm install -g aws-sso-auto-credentials
+```
 
-1. Push this repository to GitHub
-2. Go to the repository settings
-3. Navigate to the "Pages" section
-4. Select the branch you want to deploy (usually `main` or `master`)
-5. Save the settings
-6. GitHub will provide a URL where your demo is hosted
+### Using npx
 
-## About the Real Tool
+```bash
+npx aws-sso-auto-credentials
+```
 
-The real AWS SSO Auto-Credentials tool:
+## Prerequisites
 
-- Is a cross-platform Node.js CLI tool
-- Automates the setup of AWS IAM Identity Center (AWS SSO) with auto-refreshing credentials
-- Creates profile-specific refresh scripts
-- Eliminates the need for manual credential refreshing
-- Maintains security best practices
+- Node.js 14 or higher
+- AWS CLI v2 installed
+- jq installed (recommended for Linux/macOS)
+
+## Usage
+
+Run the CLI tool:
+
+```bash
+aws-sso-auto-credentials
+```
+
+The tool will guide you through the setup process with interactive prompts.
+
+### Command Line Options
+
+```
+Options:
+  --force        Overwrite existing profiles or scripts without prompt
+  --dry-run      Show planned changes without making them
+  --script-path  Custom location for refresh script (default: ~/.aws/)
+  --manual-setup Skip AWS SSO configuration and manually enter profile details
+  --skip-login   Skip automatic AWS SSO login after setup
+```
+
+## How It Works
+
+The tool sets up two AWS CLI profiles:
+
+1. **Base SSO Profile** (`<prefix>-sso`): Used for AWS CLI SSO login maintenance
+2. **Auto-Credentials Profile** (`<prefix>-auto-credentials`): Uses `credential_process` to auto-credentials credentials on demand
+
+It also creates a profile-specific script named `~/.aws/refresh-if-needed-<prefix>.sh` that:
+
+- Checks if the SSO session token is near expiration
+- Runs `aws sso login --profile <prefix>-sso` automatically if needed
+- Otherwise, proceeds without doing anything
+
+## After Setup
+
+The tool will automatically log you in with AWS SSO after setup (unless you use the `--skip-login` option). After that:
+
+1. Use the auto-credentials profile for all AWS commands:
+
+   ```bash
+   AWS_PROFILE=<prefix>-auto-credentials aws s3 ls
+   ```
+
+2. Never worry about manually refreshing credentials again!
+
+If you used the `--skip-login` option or need to login again later:
+
+```bash
+aws sso login --profile <prefix>-sso
+```
+
+## Why Two Profiles?
+
+- The `-sso` profile is needed for AWS CLI SSO login maintenance
+- The `-auto-credentials` profile uses `credential_process` to auto-credentials credentials on demand
 
 ## License
 
