@@ -10,6 +10,16 @@ A cross-platform Node.js CLI tool to automate the setup of AWS IAM Identity Cent
 - **Easy setup**: Interactive prompts guide you through the configuration process
 - **Minimal configuration**: Works in under 5 minutes with minimal input required
 
+## Demo
+
+A web-based demonstration of the tool is available online at [coston.github.io/aws-sso-auto-credentials/](https://coston.github.io/aws-sso-auto-credentials/) or in the `demo` directory.
+
+To view the demo locally:
+
+1. Open the `demo/index.html` file in your web browser
+2. Follow the simulated terminal interaction to see how the tool works
+3. View the explanation of each step and the generated files
+
 ## Installation
 
 ### Global Installation

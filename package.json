@@ -29,6 +29,11 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coston/aws-sso-auto-credentials"
+  },
+  "homepage": "https://coston.github.io/aws-sso-auto-credentials/",
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^18.6.3",
