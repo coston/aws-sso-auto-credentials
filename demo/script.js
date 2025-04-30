@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Demo state
   let demoRunning = false;
-  let fastMode = false;
+  let speedMode = "normal"; // normal, fast, or slow
   let currentStep = 0;
   let userInputActive = false;
   let inputCallback = null;
@@ -20,12 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Speed settings
   const typingSpeed = {
+    slow: 50, // ms per character
     normal: 30, // ms per character
-    fast: 5, // ms per character
+    fast: 15, // ms per character
   };
   const stepDelay = {
-    normal: 1000, // ms between steps
-    fast: 200, // ms between steps
+    slow: 4000, // ms between steps
+    normal: 3000, // ms between steps
+    fast: 1000, // ms between steps
   };
 
   // File contents
@@ -518,7 +520,7 @@ fi`,
           completeUserInput(defaultValue);
         }
       },
-      fastMode ? 500 : 2000
+      speedMode === "fast" ? 500 : speedMode === "slow" ? 3500 : 2000
     );
   }
 
@@ -537,11 +539,7 @@ fi`,
     const inputArea = inputLine.querySelector(".input-area");
 
     // Type the value
-    await typeText(
-      inputArea,
-      value,
-      fastMode ? typingSpeed.fast : typingSpeed.normal
-    );
+    await typeText(inputArea, value, typingSpeed[speedMode]);
 
     // Complete input
     userInputActive = false;
@@ -566,7 +564,7 @@ fi`,
       addTerminalLine(`<span class="output">${formattedContent}</span>`);
       // Return promise that resolves after delay
       return new Promise((resolve) =>
-        setTimeout(resolve, fastMode ? stepDelay.fast : stepDelay.normal)
+        setTimeout(resolve, stepDelay[speedMode])
       );
     } else if (step.type === "input") {
       // Return promise that resolves when input is complete
@@ -608,9 +606,28 @@ fi`,
     }
   });
 
+  // Function to update speed button text based on current speed
+  function updateSpeedButton() {
+    toggleSpeedButton.textContent = `Speed: ${
+      speedMode.charAt(0).toUpperCase() + speedMode.slice(1)
+    }`;
+  }
+
+  // Set initial button text based on current speed mode
+  updateSpeedButton();
+
   toggleSpeedButton.addEventListener("click", () => {
-    fastMode = !fastMode;
-    toggleSpeedButton.textContent = fastMode ? "Normal Speed" : "Fast Speed";
+    // Cycle through speed modes: normal -> fast -> slow -> normal
+    if (speedMode === "normal") {
+      speedMode = "fast";
+    } else if (speedMode === "fast") {
+      speedMode = "slow";
+    } else {
+      speedMode = "normal";
+    }
+
+    // Update button text to reflect the current speed
+    updateSpeedButton();
   });
 
   // Start the demo automatically
