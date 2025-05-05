@@ -74,3 +74,34 @@ export function generateAutoRefreshProfileConfig(
 
   return config;
 }
+
+/**
+ * Generate an AWS OIDC profile configuration
+ * @param profileName The name of the profile
+ * @param region The AWS region
+ * @param roleArn The AWS IAM role ARN to assume
+ * @param oidcProvider The OIDC provider (e.g., 'google')
+ * @param oidcClientId The OIDC client ID
+ * @returns The profile configuration object
+ */
+export function generateOidcProfileConfig(
+  profileName: string,
+  region: string,
+  roleArn: string,
+  oidcProvider: string,
+  oidcClientId: string
+): Record<string, any> {
+  const profileKey = `profile ${profileName}`;
+  const config: Record<string, any> = {};
+
+  // Create the profile
+  config[profileKey] = {
+    region: region,
+    role_arn: roleArn,
+    web_identity_provider:
+      oidcProvider === "google" ? "accounts.google.com" : oidcProvider,
+    client_id: oidcClientId,
+  };
+
+  return config;
+}
