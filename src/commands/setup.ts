@@ -1,8 +1,15 @@
 import path from "path";
 import os from "os";
 import { checkEnvironment } from "../utils/environment";
-import { createSsoProfile, createAutoRefreshProfile } from "../core/aws/config";
-import { createRefreshScript } from "../core/aws/scripts";
+import {
+  createSsoProfile,
+  createAutoRefreshProfile,
+  createOidcProfile,
+} from "../core/aws/config";
+import {
+  createRefreshScript,
+  createGoogleOidcRefreshScript,
+} from "../core/aws/scripts";
 import {
   validateAwsRegion,
   validateAwsAccountId,
@@ -13,7 +20,12 @@ import { STATUS, MESSAGES, formatStatus } from "../definitions/messages";
 import fileSystem from "../utils/fs/fileSystem";
 import { parseAwsConfig } from "../utils/parsers/configParser";
 import { spawn } from "child_process";
-import { setupPrompts, profileSelectionPrompts } from "../definitions/prompts";
+import {
+  setupPrompts,
+  profileSelectionPrompts,
+  oidcPrompts,
+} from "../definitions/prompts";
+import { checkGoogleCloudSdk } from "../utils/environment";
 
 export interface SetupOptions {
   force?: boolean;
@@ -21,14 +33,21 @@ export interface SetupOptions {
   scriptPath?: string;
   manualSetup?: boolean;
   skipLogin?: boolean;
+  oidcProvider?: string;
+  oidcClientId?: string;
+  roleArn?: string;
 }
 
-interface SetupAnswers extends Record<string, string> {
+interface SetupAnswers extends Record<string, any> {
   prefix: string;
   region: string;
-  ssoStartUrl: string;
-  accountId: string;
-  roleName: string;
+  ssoStartUrl?: string;
+  accountId?: string;
+  roleName?: string;
+  oidcProvider?: string;
+  oidcClientId?: string;
+  roleArn?: string;
+  useOidc?: boolean;
 }
 
 /**
@@ -95,50 +114,105 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
     }
   }
 
-  // Create SSO profile
-  try {
-    if (options.dryRun) {
-      console.log(`[DRY RUN] Would create SSO profile: ${answers.prefix}-sso`);
-    } else {
-      // Check if profile already exists and we're not forcing
-      const awsConfigPath = path.join(os.homedir(), ".aws", "config");
-      let profileExists = false;
+  // Determine if we're using OIDC or SSO
+  const isOidc = answers.useOidc || !!answers.oidcProvider;
 
-      if (await fileSystem.pathExists(awsConfigPath)) {
-        const configContent = await fileSystem.readFile(awsConfigPath);
-        const config = parseAwsConfig(configContent);
-        profileExists = !!config[`profile ${answers.prefix}-sso`];
-      }
-
-      if (profileExists && !options.force) {
+  // Create SSO profile (only if not using OIDC)
+  if (!isOidc) {
+    try {
+      if (options.dryRun) {
         console.log(
-          `${STATUS.WARNING} Profile ${answers.prefix}-sso already exists.`
+          `[DRY RUN] Would create SSO profile: ${answers.prefix}-sso`
         );
-        console.log(
-          `${STATUS.INFO} Use --force to overwrite existing profiles.`
-        );
-        console.log(`${STATUS.INFO} Continuing with existing profile...`);
       } else {
-        await performOperation("Creating SSO profile", async () => {
-          await createSsoProfile({
-            profileName: `${answers.prefix}-sso`,
-            region: answers.region,
-            ssoStartUrl: answers.ssoStartUrl,
-            accountId: answers.accountId,
-            roleName: answers.roleName,
-            force: options.force,
+        // Check if profile already exists and we're not forcing
+        const awsConfigPath = path.join(os.homedir(), ".aws", "config");
+        let profileExists = false;
+
+        if (await fileSystem.pathExists(awsConfigPath)) {
+          const configContent = await fileSystem.readFile(awsConfigPath);
+          const config = parseAwsConfig(configContent);
+          profileExists = !!config[`profile ${answers.prefix}-sso`];
+        }
+
+        if (profileExists && !options.force) {
+          console.log(
+            `${STATUS.WARNING} Profile ${answers.prefix}-sso already exists.`
+          );
+          console.log(
+            `${STATUS.INFO} Use --force to overwrite existing profiles.`
+          );
+          console.log(`${STATUS.INFO} Continuing with existing profile...`);
+        } else {
+          await performOperation("Creating SSO profile", async () => {
+            await createSsoProfile({
+              profileName: `${answers.prefix}-sso`,
+              region: answers.region,
+              ssoStartUrl: answers.ssoStartUrl!,
+              accountId: answers.accountId!,
+              roleName: answers.roleName!,
+              force: options.force,
+            });
+            return true;
           });
-          return true;
-        });
-        console.log(`Created SSO profile: ${answers.prefix}-sso`);
+          console.log(`Created SSO profile: ${answers.prefix}-sso`);
+        }
       }
+    } catch (error) {
+      console.error(
+        `${STATUS.ERROR} Failed to create SSO profile: ${answers.prefix}-sso`
+      );
+      console.error(`Error:`, error);
+      process.exit(1);
     }
-  } catch (error) {
-    console.error(
-      `${STATUS.ERROR} Failed to create SSO profile: ${answers.prefix}-sso`
-    );
-    console.error(`Error:`, error);
-    process.exit(1);
+  } else {
+    // Create OIDC profile
+    try {
+      if (options.dryRun) {
+        console.log(
+          `[DRY RUN] Would create OIDC profile: ${answers.prefix}-oidc`
+        );
+      } else {
+        // Check if profile already exists and we're not forcing
+        const awsConfigPath = path.join(os.homedir(), ".aws", "config");
+        let profileExists = false;
+
+        if (await fileSystem.pathExists(awsConfigPath)) {
+          const configContent = await fileSystem.readFile(awsConfigPath);
+          const config = parseAwsConfig(configContent);
+          profileExists = !!config[`profile ${answers.prefix}-oidc`];
+        }
+
+        if (profileExists && !options.force) {
+          console.log(
+            `${STATUS.WARNING} Profile ${answers.prefix}-oidc already exists.`
+          );
+          console.log(
+            `${STATUS.INFO} Use --force to overwrite existing profiles.`
+          );
+          console.log(`${STATUS.INFO} Continuing with existing profile...`);
+        } else {
+          await performOperation("Creating OIDC profile", async () => {
+            await createOidcProfile({
+              profileName: `${answers.prefix}-oidc`,
+              region: answers.region,
+              roleArn: answers.roleArn!,
+              oidcProvider: answers.oidcProvider!,
+              oidcClientId: answers.oidcClientId!,
+              force: options.force,
+            });
+            return true;
+          });
+          console.log(`Created OIDC profile: ${answers.prefix}-oidc`);
+        }
+      }
+    } catch (error) {
+      console.error(
+        `${STATUS.ERROR} Failed to create OIDC profile: ${answers.prefix}-oidc`
+      );
+      console.error(`Error:`, error);
+      process.exit(1);
+    }
   }
 
   // Create refresh script
@@ -159,11 +233,21 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
         console.log(`${STATUS.INFO} Continuing with existing script...`);
       } else {
         await performOperation("Creating refresh script", async () => {
-          await createRefreshScript({
-            scriptPath: fullScriptPath,
-            profileName: `${answers.prefix}-sso`,
-            force: options.force,
-          });
+          if (isOidc && answers.oidcProvider === "google") {
+            await createGoogleOidcRefreshScript({
+              scriptPath: fullScriptPath,
+              profileName: `${answers.prefix}-oidc`,
+              roleArn: answers.roleArn!,
+              clientId: answers.oidcClientId!,
+              force: options.force,
+            });
+          } else {
+            await createRefreshScript({
+              scriptPath: fullScriptPath,
+              profileName: `${answers.prefix}-sso`,
+              force: options.force,
+            });
+          }
           return true;
         });
         console.log(`Created refresh script: ${fullScriptPath}`);
@@ -233,8 +317,8 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
   // Success message
   console.log(`\n${STATUS.SUCCESS} Setup completed successfully!\n`);
 
-  // Run AWS SSO login if not in dry run mode and not skipping login
-  if (!options.dryRun && !options.skipLogin) {
+  // Run AWS SSO login if not in dry run mode and not skipping login and not using OIDC
+  if (!options.dryRun && !options.skipLogin && !isOidc) {
     try {
       console.log(`${STATUS.INFO} Initiating AWS SSO login...`);
       console.log(
@@ -253,18 +337,24 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
   }
 
   // Updated usage instructions
-  console.log("\nTo use your AWS SSO credentials:");
+  console.log("\nTo use your AWS credentials:");
 
-  // If login was skipped or in dry run mode, show the login step
-  if (options.dryRun || options.skipLogin) {
-    console.log(`  1. Run: aws sso login --profile ${answers.prefix}-sso`);
-    console.log(
-      `  2. Use ${answers.prefix}-auto-credentials profile for all AWS commands:`
-    );
-  } else {
+  if (isOidc) {
     console.log(
       `  Use ${answers.prefix}-auto-credentials profile for all AWS commands:`
     );
+  } else {
+    // If login was skipped or in dry run mode, show the login step
+    if (options.dryRun || options.skipLogin) {
+      console.log(`  1. Run: aws sso login --profile ${answers.prefix}-sso`);
+      console.log(
+        `  2. Use ${answers.prefix}-auto-credentials profile for all AWS commands:`
+      );
+    } else {
+      console.log(
+        `  Use ${answers.prefix}-auto-credentials profile for all AWS commands:`
+      );
+    }
   }
 
   console.log(
@@ -282,7 +372,12 @@ export async function setupCommand(options: SetupOptions): Promise<void> {
   // Validate setup if not in dry run mode
   if (!options.dryRun) {
     console.log(`\n${STATUS.INFO} Validating setup...`);
-    if (options.skipLogin) {
+    if (isOidc) {
+      console.log(`Run the following command to verify your setup:`);
+      console.log(
+        `  AWS_PROFILE=${answers.prefix}-auto-credentials aws sts get-caller-identity\n`
+      );
+    } else if (options.skipLogin) {
       console.log(`Run the following commands to verify your setup:`);
       console.log(`  1. aws sso login --profile ${answers.prefix}-sso`);
       console.log(
@@ -597,18 +692,103 @@ async function runAwsSsoLogin(profileName: string): Promise<void> {
 }
 
 async function promptUser(options: SetupOptions): Promise<SetupAnswers> {
+  // Check if OIDC options are provided via command line
+  if (options.oidcProvider) {
+    console.log(
+      `\n${STATUS.INFO} OIDC provider specified: ${options.oidcProvider}`
+    );
+
+    // Check for required OIDC parameters
+    if (!options.oidcClientId) {
+      options.oidcClientId = await prompt(oidcPrompts.oidcClientId);
+    }
+
+    if (!options.roleArn) {
+      options.roleArn = await prompt(oidcPrompts.roleArn);
+    }
+
+    // Check for Google Cloud SDK if using Google OIDC
+    if (options.oidcProvider.toLowerCase() === "google") {
+      const gcloudInstalled = await checkGoogleCloudSdk();
+      if (!gcloudInstalled) {
+        console.log(
+          `\n${STATUS.WARNING} Google Cloud SDK (gcloud) is required for Google OIDC authentication.`
+        );
+        console.log(
+          `${STATUS.INFO} Please install it from: https://cloud.google.com/sdk/docs/install`
+        );
+        process.exit(1);
+      }
+    }
+
+    // Get profile prefix
+    const prefix = await prompt(setupPrompts.prefix);
+    const region = await prompt(setupPrompts.region);
+
+    return {
+      prefix,
+      region,
+      useOidc: true,
+      oidcProvider: options.oidcProvider,
+      oidcClientId: options.oidcClientId,
+      roleArn: options.roleArn,
+    };
+  }
+
   // If manual setup is specified, skip SSO configuration and go straight to manual input
   if (options.manualSetup) {
     console.log(
       `\n${STATUS.INFO} Manual setup mode selected. Skipping AWS SSO configuration.`
     );
-    return promptMultiple<SetupAnswers>({
-      prefix: setupPrompts.prefix,
-      region: setupPrompts.region,
-      ssoStartUrl: setupPrompts.ssoStartUrl,
-      accountId: setupPrompts.accountId,
-      roleName: setupPrompts.roleName,
-    });
+
+    // Ask if user wants to use OIDC
+    const useOidc = await prompt(oidcPrompts.useOidc);
+
+    if (useOidc.toLowerCase().startsWith("y")) {
+      // OIDC setup
+      const oidcProvider = await prompt(oidcPrompts.oidcProvider);
+
+      // Check for Google Cloud SDK if using Google OIDC
+      if (oidcProvider.toLowerCase() === "google") {
+        const gcloudInstalled = await checkGoogleCloudSdk();
+        if (!gcloudInstalled) {
+          console.log(
+            `\n${STATUS.WARNING} Google Cloud SDK (gcloud) is required for Google OIDC authentication.`
+          );
+          console.log(
+            `${STATUS.INFO} Please install it from: https://cloud.google.com/sdk/docs/install`
+          );
+          process.exit(1);
+        }
+      }
+
+      const answers = await promptMultiple<SetupAnswers>({
+        prefix: setupPrompts.prefix,
+        region: setupPrompts.region,
+        oidcProvider: { ...oidcPrompts.oidcProvider, default: oidcProvider },
+        oidcClientId: oidcPrompts.oidcClientId,
+        roleArn: oidcPrompts.roleArn,
+      });
+
+      return {
+        ...answers,
+        useOidc: true,
+      };
+    } else {
+      // Standard SSO setup
+      const answers = await promptMultiple<SetupAnswers>({
+        prefix: setupPrompts.prefix,
+        region: setupPrompts.region,
+        ssoStartUrl: setupPrompts.ssoStartUrl,
+        accountId: setupPrompts.accountId,
+        roleName: setupPrompts.roleName,
+      });
+
+      return {
+        ...answers,
+        useOidc: false,
+      };
+    }
   }
 
   // Check for existing AWS SSO profiles
@@ -668,6 +848,41 @@ async function promptUser(options: SetupOptions): Promise<SetupAnswers> {
     }
   }
 
+  // Ask if user wants to use OIDC instead of SSO
+  const useOidc = await prompt(oidcPrompts.useOidc);
+
+  if (useOidc.toLowerCase().startsWith("y")) {
+    // OIDC setup
+    const oidcProvider = await prompt(oidcPrompts.oidcProvider);
+
+    // Check for Google Cloud SDK if using Google OIDC
+    if (oidcProvider.toLowerCase() === "google") {
+      const gcloudInstalled = await checkGoogleCloudSdk();
+      if (!gcloudInstalled) {
+        console.log(
+          `\n${STATUS.WARNING} Google Cloud SDK (gcloud) is required for Google OIDC authentication.`
+        );
+        console.log(
+          `${STATUS.INFO} Please install it from: https://cloud.google.com/sdk/docs/install`
+        );
+        process.exit(1);
+      }
+    }
+
+    const answers = await promptMultiple<SetupAnswers>({
+      prefix: setupPrompts.prefix,
+      region: setupPrompts.region,
+      oidcProvider: { ...oidcPrompts.oidcProvider, default: oidcProvider },
+      oidcClientId: oidcPrompts.oidcClientId,
+      roleArn: oidcPrompts.roleArn,
+    });
+
+    return {
+      ...answers,
+      useOidc: true,
+    };
+  }
+
   // If we found existing SSO profiles, ask if the user wants to use one
   if (existingSsoProfiles.length > 0) {
     console.log(
@@ -706,13 +921,17 @@ async function promptUser(options: SetupOptions): Promise<SetupAnswers> {
         ssoStartUrl: ssoStartUrl,
         accountId: profileConfig.sso_account_id,
         roleName: profileConfig.sso_role_name,
+        useOidc: false,
       };
     } else {
       // User declined to use existing profile
       // Run aws configure sso
       const newProfileDetails = await runSsoLogin();
       if (newProfileDetails) {
-        return newProfileDetails;
+        return {
+          ...newProfileDetails,
+          useOidc: false,
+        };
       }
     }
   } else {
@@ -722,16 +941,24 @@ async function promptUser(options: SetupOptions): Promise<SetupAnswers> {
     // Run aws configure sso
     const newProfileDetails = await runSsoLogin();
     if (newProfileDetails) {
-      return newProfileDetails;
+      return {
+        ...newProfileDetails,
+        useOidc: false,
+      };
     }
   }
 
   // Fall back to manual configuration if needed
-  return promptMultiple<SetupAnswers>({
+  const answers = await promptMultiple<SetupAnswers>({
     prefix: setupPrompts.prefix,
     region: setupPrompts.region,
     ssoStartUrl: setupPrompts.ssoStartUrl,
     accountId: setupPrompts.accountId,
     roleName: setupPrompts.roleName,
   });
+
+  return {
+    ...answers,
+    useOidc: false,
+  };
 }

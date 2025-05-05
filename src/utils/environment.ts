@@ -13,6 +13,7 @@ interface EnvironmentCheckResult {
   isWsl: boolean;
   awsCliVersion?: string;
   jqInstalled: boolean;
+  gcloudInstalled?: boolean;
   warnings: string[];
   errors: string[];
 }
@@ -34,6 +35,7 @@ export async function checkEnvironment(): Promise<EnvironmentCheckResult> {
     isGitBash: false,
     isWsl: false,
     jqInstalled: false,
+    gcloudInstalled: false,
     warnings: [],
     errors: [],
   };
@@ -105,5 +107,27 @@ export async function checkEnvironment(): Promise<EnvironmentCheckResult> {
     );
   }
 
+  // Check for Google Cloud SDK (gcloud)
+  try {
+    await execAsync("gcloud --version");
+    result.gcloudInstalled = true;
+  } catch (error) {
+    // We don't add a warning or error here by default
+    // This will only be needed if using Google OIDC
+  }
+
   return result;
+}
+
+/**
+ * Check if Google Cloud SDK is installed
+ * @returns Promise that resolves to true if gcloud is installed, false otherwise
+ */
+export async function checkGoogleCloudSdk(): Promise<boolean> {
+  try {
+    await execAsync("gcloud --version");
+    return true;
+  } catch (error) {
+    return false;
+  }
 }

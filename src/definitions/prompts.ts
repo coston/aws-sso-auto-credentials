@@ -101,3 +101,75 @@ export const profileSelectionPrompts = {
       },
     } as PromptOptions),
 };
+
+/**
+ * Prompts for OIDC setup
+ */
+export const oidcPrompts = {
+  /**
+   * Prompt for using OIDC authentication
+   */
+  useOidc: {
+    message:
+      "Do you want to use OIDC authentication instead of AWS SSO? (yes/no)",
+    default: "no",
+    validate: (input: string) => {
+      const normalized = input.toLowerCase();
+      return normalized === "yes" ||
+        normalized === "no" ||
+        normalized === "y" ||
+        normalized === "n"
+        ? true
+        : "Please enter yes or no";
+    },
+  } as PromptOptions,
+
+  /**
+   * Prompt for OIDC provider
+   */
+  oidcProvider: {
+    message: "Enter the OIDC provider (currently only 'google' is supported)",
+    default: "google",
+    validate: (input: string) => {
+      if (input.toLowerCase() !== "google") {
+        return "Currently only 'google' is supported as an OIDC provider";
+      }
+      return true;
+    },
+  } as PromptOptions,
+
+  /**
+   * Prompt for OIDC client ID
+   */
+  oidcClientId: {
+    message:
+      "Enter your OIDC client ID (e.g., for Google: 1234567890-abcxyz.apps.googleusercontent.com)",
+    validate: (input: string) => {
+      if (!input.trim()) return "Client ID cannot be empty";
+      if (
+        input.includes("google") &&
+        !input.endsWith(".apps.googleusercontent.com")
+      ) {
+        return "Google client ID should end with .apps.googleusercontent.com";
+      }
+      return true;
+    },
+  } as PromptOptions,
+
+  /**
+   * Prompt for AWS IAM role ARN
+   */
+  roleArn: {
+    message: "Enter the AWS IAM role ARN to assume with OIDC",
+    validate: (input: string) => {
+      if (!input.trim()) return "Role ARN cannot be empty";
+      if (!input.startsWith("arn:aws:iam::")) {
+        return "Role ARN should start with arn:aws:iam::";
+      }
+      if (!input.includes(":role/")) {
+        return "Role ARN should include :role/";
+      }
+      return true;
+    },
+  } as PromptOptions,
+};

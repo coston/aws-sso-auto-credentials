@@ -10,6 +10,7 @@ import {
 import {
   generateSsoProfileConfig,
   generateAutoRefreshProfileConfig,
+  generateOidcProfileConfig,
 } from "../../definitions/config";
 
 const execAsync = promisify(exec);
@@ -27,6 +28,15 @@ interface AutoRefreshProfileOptions {
   profileName: string;
   region: string;
   scriptPath: string;
+  force?: boolean;
+}
+
+interface OidcProfileOptions {
+  profileName: string;
+  region: string;
+  roleArn: string;
+  oidcProvider: string;
+  oidcClientId: string;
   force?: boolean;
 }
 
@@ -114,6 +124,48 @@ export async function createAutoRefreshProfile(
 
   // Merge the generated config with the existing config
   Object.assign(config, autoRefreshConfig);
+
+  // Write config back to file
+  await fileSystem.writeFile(awsConfigPath, stringifyAwsConfig(config));
+}
+
+/**
+ * Create or update an AWS OIDC profile in the AWS config file
+ */
+export async function createOidcProfile(
+  options: OidcProfileOptions
+): Promise<void> {
+  const awsConfigPath = path.join(os.homedir(), ".aws", "config");
+
+  // Create .aws directory if it doesn't exist
+  await fileSystem.ensureDir(path.join(os.homedir(), ".aws"));
+
+  // Read existing config or create empty config
+  let config: Record<string, any> = {};
+  if (await fileSystem.pathExists(awsConfigPath)) {
+    const configContent = await fileSystem.readFile(awsConfigPath);
+    config = parseAwsConfig(configContent);
+  }
+
+  // Check if profile already exists
+  const profileKey = `profile ${options.profileName}`;
+  if (config[profileKey] && !options.force) {
+    throw new Error(
+      `Profile ${options.profileName} already exists. Use --force to overwrite.`
+    );
+  }
+
+  // Generate the OIDC profile config
+  const oidcConfig = generateOidcProfileConfig(
+    options.profileName,
+    options.region,
+    options.roleArn,
+    options.oidcProvider,
+    options.oidcClientId
+  );
+
+  // Merge the generated config with the existing config
+  Object.assign(config, oidcConfig);
 
   // Write config back to file
   await fileSystem.writeFile(awsConfigPath, stringifyAwsConfig(config));

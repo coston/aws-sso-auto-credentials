@@ -29,6 +29,9 @@ program
     "Skip AWS SSO configuration and manually enter profile details"
   )
   .option("--skip-login", "Skip automatic AWS SSO login after setup")
+  .option("--oidc-provider <provider>", "OIDC provider to use (e.g., 'google')")
+  .option("--oidc-client-id <id>", "Client ID for OIDC provider")
+  .option("--role-arn <arn>", "AWS IAM Role ARN to assume with OIDC")
   .action(setupCommand);
 
 // Set default command
